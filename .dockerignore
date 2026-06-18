@@ -1,0 +1,56 @@
+# Dependencies
+node_modules
+backend/node_modules
+frontend/node_modules
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# GitHub / CI
+.github
+.husky
+
+# Build artifacts
+dist
+*.tsbuildinfo
+backend/dist
+frontend/dist
+
+# Logs and backups
+*.log
+example_request_do.log
+
+# Media / docs
+*.mp4
+desktop.gif
+*.png
+*.svg
+docs/
+README.md
+LICENSE
+CLAUDE.md
+GEMINI.md
+
+# Dev files
+bin/
+.env*
+.eslintcache
+*.local
+helm/
+
+# Runtime data
+uploads/
+database/
+
+# Playwright test artifacts
+test-results/
+playwright-report/
+blob-report/
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo

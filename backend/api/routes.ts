@@ -1,0 +1,48 @@
+import { Hono } from 'hono';
+import { getEnabledSocialProviders } from './auth';
+import openapi from './openapi';
+import accountRoute from './routes/account';
+import analyticsRoute from './routes/analytics';
+import apiKeysRoute from './routes/api-keys';
+import filesRoute from './routes/files';
+import healthRoute from './routes/health';
+import instanceRoute from './routes/instance';
+import { invitePublicRoute, inviteRoute } from './routes/invites';
+import metricsRoute from './routes/metrics';
+import secretRequestsRoute from './routes/secret-requests';
+import secretsRoute from './routes/secrets';
+import setupRoute from './routes/setup';
+import { userRoute } from './routes/user';
+
+// Create a new router
+const routes = new Hono()
+    .route('/secrets', secretsRoute)
+    .route('/secret-requests', secretRequestsRoute)
+    .route('/account', accountRoute)
+    .route('/files', filesRoute)
+    .route('/user', userRoute)
+    .route('/instance', instanceRoute)
+    .route('/analytics', analyticsRoute)
+    .route('/invites/public', invitePublicRoute)
+    .route('/invites', inviteRoute)
+    .route('/setup', setupRoute)
+    .route('/api-keys', apiKeysRoute)
+    .route('/metrics', metricsRoute)
+    .route('/health', healthRoute)
+    .route('/', openapi)
+    // Legacy liveness endpoint (kept for backwards compatibility)
+    .get('/healthz', (c) => c.json({ status: 'healthy', timestamp: new Date().toISOString() }))
+    .get('/config/social-providers', (c) => {
+        const providers = getEnabledSocialProviders();
+        const baseUrl = process.env.NOVA_BASE_URL || c.req.header('origin') || '';
+        const callbackBaseUrl = baseUrl ? `${baseUrl}/api/auth/callback` : '';
+
+        return c.json({
+            providers,
+            callbackBaseUrl,
+        });
+    });
+
+export default routes;
+
+export type AppType = typeof routes;

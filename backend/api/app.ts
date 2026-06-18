@@ -1,0 +1,176 @@
+import { Hono } from 'hono';
+import { cors } from 'hono/cors';
+import { csrf } from 'hono/csrf';
+import { etag, RETAINED_304_HEADERS } from 'hono/etag';
+import { HTTPException } from 'hono/http-exception';
+import { logger } from 'hono/logger';
+import { requestId } from 'hono/request-id';
+import { secureHeaders } from 'hono/secure-headers';
+import { timeout } from 'hono/timeout';
+import { trimTrailingSlash } from 'hono/trailing-slash';
+import { ZodError } from 'zod';
+
+import { auth } from './auth';
+import config from './config';
+import startJobs from './jobs';
+import ratelimit from './middlewares/ratelimit';
+import routes from './routes';
+
+// Initialize Hono app
+const app = new Hono<{
+    Variables: {
+        user: typeof auth.$Infer.Session.user | null;
+        session: typeof auth.$Infer.Session.session | null;
+    };
+}>();
+
+// Global error handler
+app.onError((err, c) => {
+    const requestId = c.get('requestId') || 'unknown';
+
+    // Handle Zod validation errors
+    if (err instanceof ZodError) {
+        console.error(`[${requestId}] Validation error:`, err.flatten());
+        return c.json(
+            {
+                error: 'Validation failed',
+                details: err.flatten().fieldErrors,
+            },
+            400
+        );
+    }
+
+    // Handle HTTP exceptions (thrown by Hono or middleware)
+    if (err instanceof HTTPException) {
+        console.error(`[${requestId}] HTTP exception:`, {
+            status: err.status,
+            message: err.message,
+        });
+        return c.json({ error: err.message }, err.status);
+    }
+
+    // Handle all other errors
+    console.error(`[${requestId}] Unhandled error:`, {
+        error: err.message,
+        stack: err.stack,
+    });
+
+    // Don't expose internal error details in production
+    return c.json({ error: 'Internal server error' }, 500);
+});
+
+// Handle 404 - route not found
+app.notFound((c) => {
+    return c.json({ error: 'Not found' }, 404);
+});
+
+// Start the background jobs
+startJobs();
+
+// Add the middlewares
+// More middlewares can be found here:
+// https://hono.dev/docs/middleware/builtin/basic-auth
+app.use(async (c, next) => {
+    // Skip CSP for Swagger UI docs page (it loads scripts/styles from cdn.jsdelivr.net)
+    if (c.req.path.endsWith('/api/docs')) {
+        return next();
+    }
+    return secureHeaders({
+        contentSecurityPolicy: {
+            defaultSrc: ["'self'"],
+            scriptSrc: ["'self'"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            imgSrc: ["'self'", 'data:', 'blob:'],
+            fontSrc: ["'self'"],
+            connectSrc: ["'self'"],
+            objectSrc: ["'none'"],
+            frameAncestors: ["'none'"],
+            baseUri: ["'self'"],
+            formAction: ["'self'"],
+        },
+        permissionsPolicy: {
+            camera: [],
+            microphone: [],
+            geolocation: [],
+        },
+    })(c, next);
+});
+app.use(logger());
+app.use(trimTrailingSlash());
+app.use(`/*`, requestId());
+app.use(`/*`, timeout(15 * 1000)); // 15 seconds timeout to the API calls
+app.use(ratelimit);
+
+// https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/ETag
+app.use(
+    `/*`,
+    etag({
+        retainedHeaders: ['x-message', ...RETAINED_304_HEADERS],
+    })
+);
+
+// Configure CORS with trusted origins
+const trustedOrigins = config.get<string[]>('trustedOrigins', []);
+app.use(
+    `/*`,
+    cors({
+        origin: trustedOrigins,
+        credentials: true,
+    })
+);
+
+// Configure CSRF protection (exclude auth routes for OAuth callbacks)
+app.use('/*', async (c, next) => {
+    // Skip CSRF for auth routes (OAuth callbacks come from external origins)
+    if (c.req.path.startsWith('/auth/')) {
+        return next();
+    }
+    return csrf({
+        origin: trustedOrigins,
+    })(c, next);
+});
+
+// Custom middlewares
+app.use('*', async (c, next) => {
+    const session = await auth.api.getSession({ headers: c.req.raw.headers });
+
+    if (!session) {
+        c.set('user', null);
+        c.set('session', null);
+        return next();
+    }
+
+    c.set('user', session.user);
+    c.set('session', session.session);
+    return next();
+});
+
+// Add the routes
+app.on(['POST', 'GET'], `/auth/*`, (c) => {
+    return auth.handler(c.req.raw);
+});
+
+// Add the application routes
+app.route('/', routes);
+
+export default app;
+
+// Handle graceful shutdown
+process.on('SIGINT', async () => {
+    process.exit(0);
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error: Error) => {
+    console.error('Uncaught Exception', {
+        error: error.message,
+        stack: error.stack,
+    });
+    process.exit(1);
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason: unknown) => {
+    console.error('Unhandled Rejection', { reason });
+    process.exit(1);
+});

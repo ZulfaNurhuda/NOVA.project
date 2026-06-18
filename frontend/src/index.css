@@ -1,0 +1,99 @@
+@import 'tailwindcss';
+@plugin '@tailwindcss/typography';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+    --color-nova-bg:           #020617;
+    --color-nova-surface:      #0f172a;
+    --color-nova-surface-2:    #1e293b;
+    --color-nova-border:       #334155;
+    --color-nova-border-2:     #475569;
+
+    --color-nova-text:         #ffffff;
+    --color-nova-text-2:       #f8fafc;
+    --color-nova-muted:        #f1f5f9;
+    --color-nova-dim:          #e2e8f0;
+
+    --color-nova-accent:       #22d3ee;
+    --color-nova-accent-dim:   #06b6d4;
+    --color-nova-accent-dark:  #0891b2;
+
+    --background-image-nova-space-gradient: linear-gradient(to bottom right, #020617, #0f172a, #1e1b4b);
+
+    --breakpoint-xs: 475px;
+
+    --animate-pulse: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    --animate-glow-pulse: glow 3s ease-in-out infinite alternate;
+}
+
+@layer base {
+    html {
+        font-family: 'Outfit', system-ui, sans-serif;
+    }
+
+    body {
+        @apply bg-nova-text-2 text-gray-900;
+    }
+
+    .dark body {
+        @apply bg-nova-space-gradient text-slate-100;
+        min-height: 100vh;
+    }
+}
+
+@layer components {
+    .bg-grid-pattern {
+        background-image: radial-gradient(
+            circle at 1px 1px,
+            rgba(255, 255, 255, 0.15) 1px,
+            transparent 0
+        );
+        background-size: 20px 20px;
+    }
+
+    .bg-grid-pattern-light {
+        background-image: radial-gradient(circle at 1px 1px, rgba(0, 0, 0, 0.1) 1px, transparent 0);
+        background-size: 20px 20px;
+    }
+
+    .slider::-webkit-slider-thumb {
+        appearance: none;
+        height: 20px;
+        width: 20px;
+        border-radius: 50%;
+        background: #22d3ee;
+        cursor: pointer;
+        border: 2px solid #e2e8f0;
+        transition: all 0.3s ease;
+    }
+
+    .dark .slider::-webkit-slider-thumb {
+        border: 2px solid #0f172a;
+        box-shadow: 0 0 10px rgba(34, 211, 238, 0.5);
+    }
+
+    .slider::-webkit-slider-thumb:hover {
+        transform: scale(1.1);
+    }
+
+    .slider::-moz-range-thumb {
+        height: 20px;
+        width: 20px;
+        border-radius: 50%;
+        background: #22d3ee;
+        cursor: pointer;
+        border: 2px solid #e2e8f0;
+    }
+
+    .dark .slider::-moz-range-thumb {
+        border: 2px solid #0f172a;
+        box-shadow: 0 0 10px rgba(34, 211, 238, 0.5);
+    }
+}
+
+@layer utilities {
+    .text-shadow {
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+    }
+}

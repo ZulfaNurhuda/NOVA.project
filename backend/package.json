@@ -1,0 +1,53 @@
+{
+  "name": "nova-backend",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "start": "node dist/server.js",
+    "dev": "tsx --watch server.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio",
+    "migrate:deploy": "drizzle-kit migrate",
+    "set:admin": "tsx scripts/admin.ts",
+    "seed:demo": "tsx scripts/seed-demo.ts",
+    "format": "prettier --write .",
+    "test": "hurl api/tests"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.19.11",
+    "@hono/swagger-ui": "^0.5.2",
+    "@hono/zod-validator": "^0.7.5",
+    "@scalar/hono-api-reference": "^0.10.19",
+    "@types/pg": "^8.20.0",
+    "argon2": "^0.44.0",
+    "better-auth": "^1.4.6",
+    "croner": "^9.1.0",
+    "dlv": "^1.1.3",
+    "dotenv": "^17.2.3",
+    "drizzle-orm": "^0.45.2",
+    "hono": "^4.12.8",
+    "hono-rate-limiter": "^0.4.2",
+    "ioredis": "^5.11.0",
+    "ip-range-check": "^0.2.0",
+    "is-cidr": "^6.0.1",
+    "is-ip": "^5.0.1",
+    "isbot": "^5.1.32",
+    "nanoid": "^5.1.6",
+    "nodemailer": "^8.0.10",
+    "pg": "^8.21.0",
+    "prom-client": "^15.1.3",
+    "tsx": "^4.21.0",
+    "zod": "^4.1.13"
+  },
+  "devDependencies": {
+    "@types/dlv": "^1.1.5",
+    "@types/node": "^25.0.1",
+    "@types/nodemailer": "^8.0.0",
+    "drizzle-kit": "^0.31.10",
+    "prettier": "^3.7.4",
+    "typescript": "^5.9.3"
+  }
+}

@@ -1,0 +1,272 @@
+import { Copy, Plus, Ticket, Trash2 } from 'lucide-react';
+import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { useLoaderData } from 'react-router-dom';
+import { toast } from 'sonner';
+import { Modal } from '../../components/Modal';
+import { api } from '../../lib/api';
+import { copyToClipboard as copyText } from '../../utils/clipboard';
+
+type InviteCode = {
+    id: string;
+    code: string;
+    uses: number;
+    maxUses: number | null;
+    expiresAt: string | null;
+    createdAt: string;
+    isActive: boolean;
+};
+
+export function InvitesPage() {
+    const { t } = useTranslation();
+    const initialInvites = useLoaderData() as InviteCode[];
+    const [invites, setInvites] = useState<InviteCode[]>(initialInvites || []);
+    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+    const [inviteToDelete, setInviteToDelete] = useState<InviteCode | null>(null);
+    const [newInviteSettings, setNewInviteSettings] = useState({
+        maxUses: 1,
+        expiresInDays: 7,
+    });
+
+    const createInvite = async () => {
+        try {
+            const res = await api.invites.$post({
+                json: newInviteSettings,
+            });
+            if (res.ok) {
+                const newInvite = await res.json();
+                setInvites([newInvite, ...invites]);
+                setIsCreateModalOpen(false);
+                toast.success(t('invites_page.toast.created'));
+            }
+        } catch (error) {
+            console.error('Failed to create invite:', error);
+            toast.error(t('invites_page.toast.create_error'));
+        }
+    };
+
+    const deleteInvite = async () => {
+        if (!inviteToDelete) return;
+        try {
+            const res = await api.invites[':id'].$delete({
+                param: { id: inviteToDelete.id },
+            });
+            if (res.ok) {
+                setInvites(invites.filter((i) => i.id !== inviteToDelete.id));
+                setInviteToDelete(null);
+                toast.success(t('invites_page.toast.deactivated'));
+            }
+        } catch (error) {
+            console.error('Failed to delete invite:', error);
+            toast.error(t('invites_page.toast.delete_error'));
+        }
+    };
+
+    const handleCopyToClipboard = async (code: string) => {
+        const success = await copyText(code);
+        if (success) {
+            toast.success(t('invites_page.toast.copied'));
+        }
+    };
+
+    return (
+        <div className="p-4 sm:p-6">
+            <div className="mb-5 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+                <div>
+                    <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">
+                        {t('invites_page.title')}
+                    </h1>
+                    <p className="text-gray-500 dark:text-slate-400 text-xs mt-0.5">
+                        {t('invites_page.description')}
+                    </p>
+                </div>
+                <button
+                    onClick={() => setIsCreateModalOpen(true)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-nova-accent hover:bg-nova-accent-dark text-white text-xs font-medium transition-colors w-fit"
+                >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>{t('invites_page.create_invite_button')}</span>
+                </button>
+            </div>
+
+            <div className="bg-white dark:bg-nova-surface border border-gray-200 dark:border-nova-border overflow-hidden">
+                <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200 dark:divide-nova-border">
+                        <thead className="bg-gray-50 dark:bg-nova-surface-2/50">
+                            <tr>
+                                <th
+                                    scope="col"
+                                    className="py-2.5 pl-4 pr-3 text-left text-xs font-medium text-gray-600 dark:text-slate-400 sm:pl-4"
+                                >
+                                    {t('invites_page.table.code_header')}
+                                </th>
+                                <th
+                                    scope="col"
+                                    className="px-3 py-2.5 text-left text-xs font-medium text-gray-600 dark:text-slate-400"
+                                >
+                                    {t('invites_page.table.uses_header')}
+                                </th>
+                                <th
+                                    scope="col"
+                                    className="px-3 py-2.5 text-left text-xs font-medium text-gray-600 dark:text-slate-400 hidden sm:table-cell"
+                                >
+                                    {t('invites_page.table.expires_header')}
+                                </th>
+                                <th
+                                    scope="col"
+                                    className="px-3 py-2.5 text-left text-xs font-medium text-gray-600 dark:text-slate-400"
+                                >
+                                    {t('invites_page.table.status_header')}
+                                </th>
+                                <th scope="col" className="relative py-2.5 pl-3 pr-4 sm:pr-4">
+                                    <span className="sr-only">Actions</span>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 dark:divide-nova-border">
+                            {invites.length === 0 ? (
+                                <tr>
+                                    <td
+                                        colSpan={5}
+                                        className="py-6 text-center text-gray-500 dark:text-slate-400"
+                                    >
+                                        <Ticket className="w-8 h-8 mx-auto mb-1.5 opacity-50" />
+                                        <p className="text-xs">
+                                            No invite codes yet. <button onClick={() => setIsCreateModalOpen(true)} className="text-nova-accent-dim hover:text-nova-accent font-medium">Create one</button> to get started.
+                                        </p>
+                                    </td>
+                                </tr>
+                            ) : (
+                                invites.map((invite) => {
+                                    const isExpired =
+                                        invite.expiresAt && new Date(invite.expiresAt) < new Date();
+                                    const isMaxedOut =
+                                        invite.maxUses && invite.uses >= invite.maxUses;
+                                    const isValid = invite.isActive && !isExpired && !isMaxedOut;
+
+                                    return (
+                                        <tr
+                                            key={invite.id}
+                                            className="hover:bg-gray-50 dark:hover:bg-nova-surface-2/30"
+                                        >
+                                            <td className="whitespace-nowrap py-2.5 pl-4 pr-3 text-xs sm:pl-4">
+                                                <div className="flex items-center gap-1.5">
+                                                    <code className="font-mono text-gray-900 dark:text-white bg-gray-100 dark:bg-nova-surface-2 px-1.5 py-0.5">
+                                                        {invite.code}
+                                                    </code>
+                                                    <button
+                                                        onClick={() =>
+                                                            handleCopyToClipboard(invite.code)
+                                                        }
+                                                        className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                                                    >
+                                                        <Copy className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                            <td className="whitespace-nowrap px-3 py-2.5 text-xs text-gray-500 dark:text-slate-400">
+                                                {invite.uses} / {invite.maxUses ?? '∞'}
+                                            </td>
+                                            <td className="whitespace-nowrap px-3 py-2.5 text-xs text-gray-500 dark:text-slate-400 hidden sm:table-cell">
+                                                {invite.expiresAt
+                                                    ? new Date(
+                                                          invite.expiresAt
+                                                      ).toLocaleDateString()
+                                                    : t('invites_page.table.never')}
+                                            </td>
+                                            <td className="whitespace-nowrap px-3 py-2.5 text-xs">
+                                                <span
+                                                    className={`px-1.5 py-0.5 inline-flex text-xs font-medium ${isValid ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}
+                                                >
+                                                    {isValid
+                                                        ? t('invites_page.status.active')
+                                                        : isExpired
+                                                          ? t('invites_page.status.expired')
+                                                          : isMaxedOut
+                                                            ? t('invites_page.status.used')
+                                                            : t('invites_page.status.inactive')}
+                                                </span>
+                                            </td>
+                                            <td className="relative whitespace-nowrap py-2.5 pl-3 pr-4 text-right sm:pr-4">
+                                                <button
+                                                    onClick={() => setInviteToDelete(invite)}
+                                                    disabled={!invite.isActive}
+                                                    className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 disabled:opacity-50 transition-colors"
+                                                >
+                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    );
+                                })
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {/* Create Modal */}
+            <Modal
+                isOpen={isCreateModalOpen}
+                onClose={() => setIsCreateModalOpen(false)}
+                onConfirm={createInvite}
+                title={t('invites_page.create_modal.title')}
+                confirmText={t('invites_page.create_invite_button')}
+                cancelText={t('invites_page.delete_modal.cancel_text')}
+            >
+                <div className="space-y-3">
+                    <div>
+                        <label className="block text-xs font-medium text-gray-600 dark:text-slate-300 mb-1">
+                            {t('invites_page.create_modal.max_uses_label')}
+                        </label>
+                        <input
+                            type="number"
+                            min={1}
+                            max={100}
+                            value={newInviteSettings.maxUses}
+                            onChange={(e) =>
+                                setNewInviteSettings({
+                                    ...newInviteSettings,
+                                    maxUses: parseInt(e.target.value),
+                                })
+                            }
+                            className="w-full px-3 py-2 text-sm bg-gray-50 dark:bg-nova-surface-2 border border-gray-200 dark:border-nova-border text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-medium text-gray-600 dark:text-slate-300 mb-1">
+                            {t('invites_page.create_modal.expires_in_label')}
+                        </label>
+                        <input
+                            type="number"
+                            min={1}
+                            max={365}
+                            value={newInviteSettings.expiresInDays}
+                            onChange={(e) =>
+                                setNewInviteSettings({
+                                    ...newInviteSettings,
+                                    expiresInDays: parseInt(e.target.value),
+                                })
+                            }
+                            className="w-full px-3 py-2 text-sm bg-gray-50 dark:bg-nova-surface-2 border border-gray-200 dark:border-nova-border text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:"
+                        />
+                    </div>
+                </div>
+            </Modal>
+
+            {/* Delete Modal */}
+            <Modal
+                isOpen={!!inviteToDelete}
+                onClose={() => setInviteToDelete(null)}
+                onConfirm={deleteInvite}
+                title={t('invites_page.delete_modal.title')}
+                confirmText={t('invites_page.delete_modal.confirm_text')}
+                cancelText={t('invites_page.delete_modal.cancel_text')}
+            >
+                <p className="text-xs text-gray-600 dark:text-slate-300">
+                    {t('invites_page.delete_modal.message', { code: inviteToDelete?.code })}
+                </p>
+            </Modal>
+        </div>
+    );
+}
